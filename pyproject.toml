@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "project-develop"
+version = "0.1.0"
+description = ""
+authors = ["SyuanBo <godspeed88168@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+pandas = "^2.2.2"
+sentence-transformers = "^2.7.0"
+python-dotenv = "^1.0.1"
+langchain-openai = "^0.1.5"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
