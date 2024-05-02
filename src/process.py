@@ -1,7 +1,14 @@
 import pandas as pd
 from sentence_transformers import SentenceTransformer, util
 import statistics
+import multiprocessing
+from pathos.pools import ProcessPool
 from tqdm import tqdm
+import os
+import timeit
+import spacy
+import nltk
+from nltk.tokenize import sent_tokenize
 
 from constants import (
     SDGS_COLOR_CODE,
@@ -11,6 +18,9 @@ from constants import (
 )
 
 tqdm.pandas()
+
+
+os.environ['TOKENIZERS_PARALLELISM'] = 'true'
 
 class Comparison():
 
@@ -53,7 +63,6 @@ class Comparison():
 
         # convert goal and id columns to string
         self.city_sdgs = self.city_sdgs.astype('str')
-        
 
     def compute_similarity(self):
         un_sentences = self.un_sdgs['sentence'].to_list()
@@ -71,50 +80,61 @@ class Comparison():
 
         return df
     
-    def compute_similarity_by_divided_sentence(self, length):
-        # un_indicator = self.un_sdgs['indicator']
-        # city_sentences = self.city_sdgs['sentence'].to_list()
+    def compute_similarity_by_divided_sentence(self):
+        """Split sentences by two different ways"""
+
+        def package_initialize():
+            nltk.download('punkt')
+
+        def _evenly_split_un_description(un_description, length):
+            word_list = un_description.split(" ") # split by blank space
+            word_count = len(word_list)
+            each_seg_word_count = int(round(word_count/length, 0)) # how many words in each segment
+            seg_list = []
+            for i in range(0, word_count, each_seg_word_count):
+                seg_sentence = ' '.join(word_list[i:i+each_seg_word_count])
+                seg_list.append(seg_sentence)
+            return seg_list
+
+        def _sentence_split_un_description_spacy(un_description):
+            """Use by Spacy"""
+            nlp = spacy.load('en_core_web_sm')
+            doc = nlp(un_description)
+            sentences = [sentence for sentence in doc.sents]
+            return sentences
         
+        def _sentence_split_un_description_nltk(un_description):
+            """Use by NLTK"""
+            return sent_tokenize(un_description)
 
-        def _segment_cosine_similarity(word_list, city_sentence):
-            sentence = ' '.join(word_list)
-            embedding_sentence = self.model.encode(sentence, convert_to_tensor = True)
-            # embedding_city = self.model.encode(self.city_sdgs)
-            
-            # TODO: How to import city goal
-            embedding_city = self.model.encode(city_sentence, convert_to_tensor = True)
+        # by evenly split
+        # by spacy
+        # self.un_sdgs['segment'] = self.un_sdgs['description'].apply(_evenly_split_un_description_spacy)
+        # by NLTK
+        self.un_sdgs['segment'] = self.un_sdgs['description'].apply(_sentence_split_un_description_nltk)
+        segment_list = self.un_sdgs['segment'].explode().to_list()
+        # create embeddings for each sentence
+        embedding_un_segment = self.model.encode(segment_list, convert_to_tensor=True) 
+        # # create the embedding of the city SDGs
+        embedding_cities = self.model.encode(self.city_sdgs['sentence'].to_list(), convert_to_tensor=True) 
 
-            cosine_score = util.cos_sim(embedding_city, embedding_sentence)
-            return cosine_score.cpu().item()
+        # # compute_similarity
+        cosine_scores = util.cos_sim(embedding_un_segment, embedding_cities)
+        cosine_scores = pd.DataFrame(cosine_scores.cpu(), columns=self.city_sdgs['id'].to_list())
+        similarity_df = pd.concat([self.un_sdgs, cosine_scores], axis=1)
+        # similarity_avg = similarity_df.groupby(['id'])['1':'81'].mean()
+        similarity_col = similarity_df.columns[-self.city_sdgs.shape[0]:]
+        similarity_avg = similarity_df.groupby(['id'])[similarity_col].mean()
 
-        def _split_sentence(text):
-            score_list = []
-            word = text.split()
-            word_count = len(word)
-            each_seg_word_count = int(round(word_count/length, 0))
-            
-            # How to implement
-            # for loop for city sdg
-            # for city_sentence in self.city_sdgs['sentence'].to_list():
-            city_sentence = '( 低收入戶人數 ÷ 新北市總人數）× 100%'
-
-            for id, i in enumerate(range(0, word_count, each_seg_word_count)):
-                score = _segment_cosine_similarity(word[i:i+each_seg_word_count], city_sentence)
-                score_list.extend([score])
-
-            average_cosine = statistics.mean(score_list)
-            return average_cosine
-
-        un_description_segs = self.un_sdgs.progress_apply(lambda row: _split_sentence(row['sentence']), axis=1)
-        
-        pd.concat([self.un_sdgs, un_description_segs], axis=1).to_csv('test3.csv')
-
-        # city_sentences = self.city_sdgs['sentence'].to_list()
+        # match the self.melt_table method
+        similarity_avg.index.names = ['index']
+        return similarity_avg
 
     
     def melt_table(self, df):
         # index: un_id
         self.df_melt = df.reset_index()
+        print(self.df_melt)
         self.df_melt = pd.melt(self.df_melt, id_vars=['index'], value_name = 'value')
         self.df_melt = self.df_melt.rename(columns={'index':'source', 'variable':'target', 'value':'value'})
         # return self.df_melt
@@ -220,14 +240,22 @@ class Comparison():
         # preprocess
         self.un_sdgs_preprocess()
         self.city_sgds_preprocess()
-        self.compute_similarity_by_divided_sentence(10)
 
+        # def test_func():
+        #     self.compute_similarity_by_divided_sentence()
 
+        # t = timeit.timeit(test_func, number=1)
+        # print("執行時間：%f 秒" % t)
+        
+
+        
         # process
         # df = self.compute_similarity()
-        # self.melt_table(df)
-
-        # self.fileter_by_threshold()
+        df = self.compute_similarity_by_divided_sentence()
+        self.melt_table(df)
+        
+        self.fileter_by_threshold()
+        print(self.df_filter)
         # self.export_radar_chart_data()
         # self.export_card_data()
         # self.export_sankey_chart_data()

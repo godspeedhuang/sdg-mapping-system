@@ -6,8 +6,8 @@ from process import Comparison
 model = SentenceTransformer('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2')
 
 sdgs_path = r'../data/ntp_sdgs_indicators.csv'
-city_name = 'NewTaipei_test'
+city_name_1 = 'NewTaipei_test'
 threshold = 0.5
-test = Comparison(sdgs_path, city_name, model, threshold)
+test = Comparison(sdgs_path, city_name_1, model, threshold)
 
 data = test.run()
