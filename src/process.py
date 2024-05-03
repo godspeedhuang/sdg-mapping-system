@@ -1,11 +1,8 @@
 import pandas as pd
 from sentence_transformers import SentenceTransformer, util
 import statistics
-import multiprocessing
-from pathos.pools import ProcessPool
 from tqdm import tqdm
 import os
-import timeit
 import spacy
 import nltk
 from nltk.tokenize import sent_tokenize
@@ -107,21 +104,35 @@ class Comparison():
             """Use by NLTK"""
             return sent_tokenize(un_description)
 
+        # # create the embedding of the city SDGs
+        embedding_cities = self.model.encode(self.city_sdgs['sentence'].to_list(), convert_to_tensor=True) 
+
+        # compute similarity for indicator
+        embedding_un_indicator = self.model.encode(self.un_sdgs['indicator'].to_list(), convert_to_tensor=True)
+        cosine_scores_indicator = util.cos_sim(embedding_un_indicator, embedding_cities)
+
+        cosine_scores_indicator = pd.DataFrame(cosine_scores_indicator.cpu(), columns=self.city_sdgs['id'].to_list())
+        indicator_similarity = pd.concat([self.un_sdgs, cosine_scores_indicator], axis=1)
+
         # by evenly split
         # by spacy
         # self.un_sdgs['segment'] = self.un_sdgs['description'].apply(_evenly_split_un_description_spacy)
         # by NLTK
         self.un_sdgs['segment'] = self.un_sdgs['description'].apply(_sentence_split_un_description_nltk)
-        segment_list = self.un_sdgs['segment'].explode().to_list()
+        un_sdgs_explode = self.un_sdgs.explode('segment', ignore_index=True)
+        
         # create embeddings for each sentence
-        embedding_un_segment = self.model.encode(segment_list, convert_to_tensor=True) 
-        # # create the embedding of the city SDGs
-        embedding_cities = self.model.encode(self.city_sdgs['sentence'].to_list(), convert_to_tensor=True) 
+        embedding_un_segment = self.model.encode(un_sdgs_explode['segment'].to_list(), convert_to_tensor=True) 
 
         # # compute_similarity
         cosine_scores = util.cos_sim(embedding_un_segment, embedding_cities)
         cosine_scores = pd.DataFrame(cosine_scores.cpu(), columns=self.city_sdgs['id'].to_list())
-        similarity_df = pd.concat([self.un_sdgs, cosine_scores], axis=1)
+        
+        similarity_df = pd.concat([un_sdgs_explode, cosine_scores], axis=1)
+        indicator_similarity['segment'] = ''
+
+        similarity_df = pd.concat([similarity_df, indicator_similarity], axis=0, ignore_index=True)  
+
         # similarity_avg = similarity_df.groupby(['id'])['1':'81'].mean()
         similarity_col = similarity_df.columns[-self.city_sdgs.shape[0]:]
         similarity_avg = similarity_df.groupby(['id'])[similarity_col].mean()
@@ -134,7 +145,6 @@ class Comparison():
     def melt_table(self, df):
         # index: un_id
         self.df_melt = df.reset_index()
-        print(self.df_melt)
         self.df_melt = pd.melt(self.df_melt, id_vars=['index'], value_name = 'value')
         self.df_melt = self.df_melt.rename(columns={'index':'source', 'variable':'target', 'value':'value'})
         # return self.df_melt
@@ -255,10 +265,9 @@ class Comparison():
         self.melt_table(df)
         
         self.fileter_by_threshold()
-        print(self.df_filter)
-        # self.export_radar_chart_data()
-        # self.export_card_data()
-        # self.export_sankey_chart_data()
+        self.export_radar_chart_data()
+        self.export_card_data()
+        self.export_sankey_chart_data()
 
 
 
