@@ -181,6 +181,9 @@ class Comparison():
         
         # goal to SDG goal SDG01, SDG02, SDG03
         self.df_filter['goal'] = self.df_filter['goal'].apply(lambda x:'SDG{:02d}'.format(int(x)))
+        self.df_filter = (self.df_filter.merge(pd.DataFrame(SDG_GOAL_TEXT)[['code', 'Goal_text']], left_on='goal', right_on='code', how='inner')
+                          .drop(['code'], axis=1)
+                          .rename(columns={'Goal_text':'goal_text'}))
 
         # Create the relationship with World Bank
         self.df_filter.loc[self.df_filter['source'].isin(WORLD_BANK_CUSTODIAN_INDICATORS), 'WB_related'] = 'world bank custodian'
@@ -230,8 +233,12 @@ class Comparison():
                     .rename(columns={0:'value'})
                     .fillna(0)
                     .merge(pd.DataFrame(SDG_GOAL_TEXT)[['code','Goal_text']], left_on='goal', right_on='code', how='inner')
+                    .rename(columns={'Goal_text':'goal_text'})
                     .drop(['code'], axis=1))
         
+        # SDG01 No Poverty
+        radar_df['goal_text'] = radar_df['goal']+ '\n' +radar_df['goal_text']
+
         # sort by goal number SDG1-> SDG2 -> ... -> SDG17
         radar_df['goal_num'] = radar_df['goal'].str[3:]
         radar_df['goal_num'] = radar_df['goal_num'].astype('int')
@@ -278,7 +285,7 @@ if __name__ == '__main__':
     
     sdgs_path = r'../data/ntp_sdgs_indicators.csv'
     city_name = 'Testing'
-    threshold = 0.5
+    threshold = 0.45
     test = Comparison(sdgs_path, city_name, model, threshold)
     
     # sdgs_path = r'../data/tp_sdgs_indicators.csv'
