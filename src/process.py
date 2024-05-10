@@ -34,6 +34,8 @@ class Comparison():
 
         # import city indicators
         self.city_sdgs = pd.read_csv(city_file)
+        self.city_sdgs = self.city_sdgs[['goal','id','indicator','description']]
+        # .rename(columns={'indicator':'indicator', 'description':'description'})
 
         # select a model for creating embeddings
         self.model = model
@@ -56,7 +58,10 @@ class Comparison():
         self.un_sdgs['color'] = self.un_sdgs['goal'].map(SDGS_COLOR_CODE)
 
     def city_sgds_preprocess(self):
+        # self.city_sdgs['sentence'] = self.city_sdgs['indicator'] + ": " + self.city_sdgs['description'].fillna('')
+        
         self.city_sdgs['sentence'] = self.city_sdgs['indicator'] + ": " + self.city_sdgs['description'].fillna('')
+        
 
         # convert goal and id columns to string
         self.city_sdgs = self.city_sdgs.astype('str')
@@ -267,8 +272,8 @@ class Comparison():
 
         
         # process
-        # df = self.compute_similarity()
-        df = self.compute_similarity_by_divided_sentence()
+        df = self.compute_similarity()
+        # df = self.compute_similarity_by_divided_sentence()
         self.melt_table(df)
         
         self.fileter_by_threshold()
@@ -283,9 +288,9 @@ if __name__ == '__main__':
 
     model = SentenceTransformer('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2')
     
-    sdgs_path = r'../data/ntp_sdgs_indicators.csv'
-    city_name = 'Testing'
-    threshold = 0.45
+    sdgs_path = r'../data/ty_sdgs_indicators.csv'
+    city_name = 'Taoyuan'
+    threshold = 0.5
     test = Comparison(sdgs_path, city_name, model, threshold)
     
     # sdgs_path = r'../data/tp_sdgs_indicators.csv'
