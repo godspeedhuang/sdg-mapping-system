@@ -123,6 +123,7 @@ class Comparison():
         # by spacy
         # self.un_sdgs['segment'] = self.un_sdgs['description'].apply(_evenly_split_un_description_spacy)
         # by NLTK
+        # self.un_sdgs['segment'] = self.un_sdgs['description'].apply(_evenly_split_un_description, length=5)
         self.un_sdgs['segment'] = self.un_sdgs['description'].apply(_sentence_split_un_description_nltk)
         un_sdgs_explode = self.un_sdgs.explode('segment', ignore_index=True)
         
@@ -200,7 +201,7 @@ class Comparison():
 
 
     def export_sankey_chart_data(self):
-        self.df_filter.to_csv(fr'../output/{self.city_name}_sankey.csv')
+        self.df_filter.to_csv(fr'../output/{self.city_name}_sankey_method3.csv')
 
     def export_card_data(self):
         # Count non-None indicators
@@ -272,13 +273,13 @@ class Comparison():
 
         
         # process
-        df = self.compute_similarity()
-        # df = self.compute_similarity_by_divided_sentence()
+        # df = self.compute_similarity()
+        df = self.compute_similarity_by_divided_sentence()
         self.melt_table(df)
         
         self.fileter_by_threshold()
-        self.export_radar_chart_data()
-        self.export_card_data()
+        # self.export_radar_chart_data()
+        # self.export_card_data()
         self.export_sankey_chart_data()
 
 
@@ -288,9 +289,9 @@ if __name__ == '__main__':
 
     model = SentenceTransformer('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2')
     
-    sdgs_path = r'../data/ty_sdgs_indicators.csv'
-    city_name = 'Taoyuan'
-    threshold = 0.5
+    sdgs_path = r'../data/tp_sdgs_indicators.csv'
+    city_name = 'Taipei'
+    threshold = 0.45
     test = Comparison(sdgs_path, city_name, model, threshold)
     
     # sdgs_path = r'../data/tp_sdgs_indicators.csv'
